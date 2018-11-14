@@ -1,0 +1,15 @@
+# run this to initialize:
+terraform init
+
+# run this to see what it would do:
+terraform plan -var-file=sub.tfvars
+
+# run this to make it do what it will do:
+terraform apply -var-file=sub.tfvars
+
+# use the following, if you don't want to have to tell it 'yes'.  Like when
+# automating via jenkins
+# terraform apply -var-file=sub.tfvars -auto-approve
+
+# run this to delete the voodoo
+terraform destroy -var-file=sub.tfvars
