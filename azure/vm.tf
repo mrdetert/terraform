@@ -1,33 +1,83 @@
-resource "azurerm_virtual_network" "mynet" {
-    name="myvnet"
-    address_space=["10.0.0.0/16"]
+resource "azurerm_network_interface" "mynic" {
+    name="table5jdnic1"
     location="${var.location}"
+    resource_group_name="${var.rg}"
+    network_security_group_id="${azurerm_network_security_group.secgroup.id}"
+    ip_configuration {
+        name="mynicipconfig"
+        subnet_id="${azurerm_subnet.mysubnet.id}"
+        private_ip_address_allocation="dynamic"
+        public_ip_address_id="${azurerm_public_ip.myip.id}"
+    }
+}
+
+# azure storage account names need to be unique globally.  So, we generate a random number
+# to use for our storage account
+resource "random_id" "randomid" {
+    keepers = {
+        resource_group_name="${azurerm_resource_group.thegroup.name}"
+    }
+    byte_length=8
+}
+
+# create a 'diagnostic' storage account for the vm
+resource "azurerm_storage_account" "mystorage" {
+    name="diag${random_id.randomid.hex}"
     resource_group_name="${azurerm_resource_group.thegroup.name}"
-    tags{
+    location="${var.location}"
+    account_tier="Standard"
+    account_replication_type="LRS"
+    tags {
         environment="Testing"
     }
 }
 
-resource "azurerm_subnet" "mysubnet" {
-    name="mysubnet"
-    resource_group_name="${azurerm_resource_group.thegroup.name}"
-    virtual_network_name="${azurerm_virtual_network.mynet.name}"
-    address_prefix="10.0.1.0/24"
-}
-
-resource "azurerm_public_ip" "myip" {
-    name="table5jdpubip"
+resource "azurerm_virtual_machine" "thevm" {
+    name="table5jdtfvm"
     location="${var.location}"
     resource_group_name="${azurerm_resource_group.thegroup.name}"
-    public_ip_address_allocation="dynamic"
-    tags{
+    network_interface_ids=["${azurerm_network_interface.mynic.id}"]
+    vm_size="Standard_DS1_v2"
+    storage_os_disk {
+        name="theosdisk"
+        caching="ReadWrite"
+        create_option="FromImage"
+        managed_disk_type="Premium_LRS"
+    }
+    storage_image_reference {
+        publisher="Canonical"
+        offer="UbuntuServer"
+        sku="16.04-LTS"
+        version="latest"
+    }
+    os_profile {
+        computer_name="table5jdtfvm"
+        admin_username="azureops"
+    }
+    os_profile_linux_config {
+        disable_password_authentication=true
+        ssh_keys {
+            path="/home/azureops/.ssh/authorized_keys"
+            key_data="${file("~/.ssh/id_rsa.pub")}"
+        }
+    }
+    boot_diagnostics {
+        enabled="true"
+        storage_uri="${azurerm_storage_account.mystorage.primary_blob_endpoint}"
+    }
+    tags {
         environment="Testing"
     }
 }
 
-# resource "azurerm_virtual_machine" "myvm" {
-#     name="table5jdtfvm"
-#     location="${var.location}"
-#     resource_group_name="${azurerm_resource_group.thegroup.name}"
-#     network_interface_ids=["${name}"]
-# }
+resource "null_resource" "upload" {
+    provisioner "file" {
+        source="${file("~/AnsibleTerraformPackerClass/terraform/azure/thegraph.svg")}"
+        destination="./thegraph.svg"
+        connection {
+            host="${azurerm_public_ip.myip.ip_address}"
+            type="ssh"
+            user="azureops"
+        }
+    }
+}

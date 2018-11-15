@@ -5,3 +5,6 @@ sub_id="0ab9ad2e-f316-4da5-b243-e7f65da24755"
 
 rg="table5jdapprg"
 location="westeurope"
+
+sec_group_name="table5jdnsg"
+prefix="table5jd"
